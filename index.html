@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ledger — Personal Budget Tracker</title>
+<meta name="description" content="A daily expense & income tracker with custom categories, recurring bills, split-bill, budgets and a spending calendar. Your data stays in your own browser." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+
+<style>
+  :root {
+    --paper: #EDE8D9; --paper-2: #E3DCC7; --paper-3: #F5F1E4;
+    --ink: #23322B; --ink-soft: #5B6960; --ink-faint: #8B9186; --rule: #C7BFA3;
+    --emerald: #2F6F4E; --rust: #A8442C; --gold: #B98A22;
+    --header-bg: #1C2A22; --header-ink: #EDE8D9; --radius: 10px;
+    --shadow: 0 1px 2px rgba(35,50,43,0.08), 0 4px 14px rgba(35,50,43,0.07);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background: var(--paper-2); font-family:'Inter', sans-serif; color: var(--ink); }
+  #root { display:flex; justify-content:center; padding: 24px 14px; min-height:100vh; }
+
+  .ledger-app { width:100%; max-width:1080px; background: var(--paper); border-radius:16px; overflow:hidden; box-shadow: 0 10px 40px rgba(28,42,34,0.18); }
+  .boot { display:flex; align-items:center; gap:8px; padding:40px; justify-content:center; color: var(--ink-soft); }
+
+  .app-header { background: var(--header-bg); color: var(--header-ink); padding: 18px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .header-left .brand { font-family:'Fraunces', serif; font-weight:600; font-size:22px; display:flex; align-items:center; gap:8px; }
+  .header-left .brand-sub { font-size:11.5px; color: rgba(237,232,217,0.6); letter-spacing:0.03em; margin-top:2px; }
+  .header-mid { display:flex; gap:26px; }
+  .stat-label { font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em; color: rgba(237,232,217,0.55); }
+  .stat-value { font-family:'IBM Plex Mono', monospace; font-size:19px; font-weight:600; margin-top:2px; }
+  .header-right { display:flex; align-items:center; gap:10px; }
+  .stamp-wrap { transform: rotate(-6deg); }
+  .stamp-pct { font-family:'IBM Plex Mono', monospace; font-size:19px; font-weight:600; fill: var(--header-ink); }
+  .stamp-label { font-size:9px; letter-spacing:0.12em; fill: rgba(237,232,217,0.6); }
+
+  .icon-btn { background: rgba(237,232,217,0.08); border:1px solid rgba(237,232,217,0.18); color: var(--header-ink); width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background 0.15s; }
+  .icon-btn:hover { background: rgba(237,232,217,0.18); }
+  .icon-btn:disabled { opacity:0.35; cursor:default; }
+  .icon-btn.small { width:28px; height:28px; color: var(--ink); background:transparent; border-color: var(--rule); }
+  .icon-btn.small:hover { background: var(--paper-2); }
+
+  .tab-bar { display:flex; gap:4px; padding:10px 22px 0; background: var(--paper); border-bottom:1px solid var(--rule); overflow-x:auto; }
+  .tab-btn { font-family:'Inter'; font-size:13.5px; font-weight:500; padding:10px 14px; background:none; border:none; color: var(--ink-soft); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; }
+  .tab-btn.active { color: var(--ink); border-bottom-color: var(--rust); }
+  .tab-btn:hover:not(.active) { color: var(--ink); }
+
+  .app-main { padding:20px 22px 28px; }
+  .stack { display:flex; flex-direction:column; gap:16px; max-width:980px; margin:0 auto; }
+  .stack.narrow { max-width:560px; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:720px) { .grid-2 { grid-template-columns:1fr; } .header-mid { display:none; } }
+
+  .card { background: var(--paper-3); border:1px solid var(--rule); border-radius: var(--radius); padding:16px 18px; box-shadow: var(--shadow); }
+  .card-title { font-family:'Fraunces', serif; font-weight:600; font-size:15px; margin-bottom:12px; color: var(--ink); }
+  .card-title-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .card-title-row .card-title { margin-bottom:0; }
+
+  .empty-note { color: var(--ink-faint); font-size:13px; font-style:italic; padding:10px 2px; }
+
+  .balance-card { display:flex; flex-direction:column; gap:10px; }
+  .balance-main { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:6px; }
+  .balance-label { display:flex; align-items:center; gap:6px; font-size:12.5px; color: var(--ink-soft); text-transform:uppercase; letter-spacing:0.06em; }
+  .balance-value { font-family:'IBM Plex Mono', monospace; font-size:30px; font-weight:600; color: var(--emerald); }
+  .balance-value.neg { color: var(--rust); }
+  .balance-mini-row { display:flex; gap:18px; flex-wrap:wrap; font-size:12.5px; color: var(--ink-soft); }
+  .balance-mini { display:flex; align-items:center; gap:5px; }
+  .balance-mini b { font-family:'IBM Plex Mono', monospace; color: var(--ink); font-weight:600; }
+  .balance-mini b.pos { color: var(--emerald); }
+  .balance-mini b.neg { color: var(--rust); }
+
+  .period-switcher { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .period-pills { display:flex; gap:4px; background: var(--paper-2); padding:3px; border-radius:8px; flex-wrap:wrap; }
+  .period-pills.wide { width:100%; }
+  .pill { border:none; background:none; padding:6px 12px; border-radius:6px; font-size:12.5px; font-weight:500; cursor:pointer; color: var(--ink-soft); }
+  .pill.tiny { padding:4px 9px; font-size:11.5px; }
+  .pill.active { background: var(--paper-3); color: var(--ink); box-shadow:0 1px 2px rgba(0,0,0,0.08); }
+  .period-nav { display:flex; align-items:center; gap:8px; }
+  .period-label { font-family:'IBM Plex Mono', monospace; font-size:13px; min-width:150px; text-align:center; }
+  .link-btn { background:none; border:none; color: var(--emerald); font-size:12.5px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px; padding:4px 6px; }
+  .link-btn:hover { text-decoration:underline; }
+
+  .heatmap-weekdays { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:4px; }
+  .heatmap-weekdays span { text-align:center; font-size:10.5px; color: var(--ink-faint); text-transform:uppercase; }
+  .heatmap-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .heat-cell { aspect-ratio:1; border-radius:6px; border:1px solid var(--rule); background: var(--paper); cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; transition:transform 0.1s; }
+  .heat-cell:hover { transform:scale(1.06); z-index:1; }
+  .heat-cell.outside { opacity:0.28; cursor:default; }
+  .heat-cell.is-today { border:1.5px solid var(--gold); }
+  .heat-daynum { font-size:11px; color: var(--ink); }
+  .heat-amt { font-family:'IBM Plex Mono', monospace; font-size:9px; color: var(--rust); font-weight:600; }
+  .heatmap-scale { display:flex; align-items:center; gap:4px; margin-top:10px; font-size:10.5px; color: var(--ink-faint); }
+  .scale-swatch { width:14px; height:10px; border-radius:2px; }
+
+  .week-bars { display:flex; gap:6px; align-items:flex-end; height:150px; overflow-x:auto; }
+  .week-bar-col { flex:1; min-width:26px; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; background:none; border:none; cursor:pointer; }
+  .week-bar-amt { font-family:'IBM Plex Mono', monospace; font-size:10px; color: var(--ink-soft); }
+  .week-bar-track { flex:1; width:60%; background: var(--paper-2); border-radius:4px; display:flex; align-items:flex-end; overflow:hidden; }
+  .week-bar-fill { width:100%; background: var(--rust); border-radius:4px 4px 0 0; transition:height 0.4s; }
+  .week-bar-label { font-size:10.5px; color: var(--ink-soft); }
+  .week-bar-label.is-today { color: var(--gold); font-weight:700; }
+
+  .year-bars { display:flex; gap:6px; align-items:flex-end; height:140px; }
+  .year-bar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; background:none; border:none; cursor:pointer; }
+  .year-bar-track { flex:1; width:70%; background: var(--paper-2); border-radius:3px; display:flex; align-items:flex-end; overflow:hidden; }
+  .year-bar-fill { width:100%; background: var(--emerald); border-radius:3px 3px 0 0; transition:height 0.4s; }
+  .year-bar-label { font-size:10px; color: var(--ink-soft); }
+
+  .donut-wrap { display:flex; flex-direction:column; align-items:center; }
+  .legend { display:flex; flex-direction:column; gap:6px; margin-top:12px; width:100%; }
+  .legend-row { display:flex; align-items:center; gap:8px; font-size:12.5px; }
+  .legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .legend-name { flex:1; color: var(--ink); }
+  .legend-val { font-family:'IBM Plex Mono', monospace; color: var(--ink-soft); }
+
+  .register-filters { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  .filter-pills { display:flex; gap:4px; background: var(--paper-2); padding:3px; border-radius:7px; }
+  .tiny-select { padding:6px 8px; font-size:11.5px; width:auto; }
+
+  .ledger-list { display:flex; flex-direction:column; }
+  .ledger-row, .recurring-row, .top-cat-row { display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px dashed var(--rule); font-size:13px; cursor:pointer; }
+  .top-cat-row { cursor:default; }
+  .ledger-row:last-child, .recurring-row:last-child, .top-cat-row:last-child { border-bottom:none; }
+  .ledger-row:hover { background: rgba(0,0,0,0.02); }
+  .ledger-icon { width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .ledger-desc { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+  .recurring-name { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .ledger-cat { font-size:10.5px; color: var(--ink-faint); }
+  .ledger-date { font-size:11px; color: var(--ink-faint); white-space:nowrap; }
+  .ledger-amt { font-family:'IBM Plex Mono', monospace; font-weight:600; white-space:nowrap; }
+  .ledger-amt.pos { color: var(--emerald); }
+  .ledger-del { background:none; border:none; color: var(--ink-faint); cursor:pointer; padding:4px; flex-shrink:0; }
+  .ledger-del:hover { color: var(--rust); }
+  .recurring-row.paused { opacity:0.55; }
+
+  .field-label { display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:0.05em; color: var(--ink-soft); margin:12px 0 6px; }
+  .field-label:first-of-type { margin-top:0; }
+  .text-input { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--rule); background: var(--paper); color: var(--ink); font-family:'Inter'; font-size:13.5px; outline:none; }
+  .text-input:focus { border-color: var(--emerald); }
+  .text-input.mono { font-family:'IBM Plex Mono', monospace; }
+  .text-input.tiny { padding:7px 9px; font-size:12.5px; }
+  .field-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .amount-input-wrap { position:relative; }
+  .amount-input-wrap .text-input { padding-left:26px; }
+  .amount-input-wrap.small .text-input { padding:7px 10px 7px 22px; font-size:12.5px; }
+  .amount-prefix { position:absolute; left:12px; top:50%; transform:translateY(-50%); color: var(--ink-soft); font-family:'IBM Plex Mono', monospace; font-size:13px; }
+  .amount-input-wrap.small .amount-prefix { left:8px; font-size:11.5px; }
+
+  .detect-row { display:flex; align-items:center; gap:6px; font-size:12px; color: var(--ink-soft); margin-top:8px; flex-wrap:wrap; }
+  .detect-chip { display:inline-flex; align-items:center; gap:4px; background: var(--paper-2); padding:3px 9px; border-radius:20px; font-weight:600; color: var(--ink); }
+
+  .cat-chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:2px; }
+  .cat-chips.sub { margin-top:8px; }
+  .cat-chip { display:flex; align-items:center; gap:5px; padding:7px 11px; border-radius:20px; border:1px solid var(--rule); background: var(--paper); font-size:12.5px; color: var(--ink-soft); cursor:pointer; }
+  .cat-chip.sub { padding:5px 10px; font-size:11.5px; }
+  .cat-chip.active { font-weight:600; }
+  .cat-chip:hover { border-color: var(--ink-soft); }
+
+  .primary-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; margin-top:16px; padding:11px; border-radius:8px; border:none; background: var(--emerald); color:#fff; font-weight:600; font-size:13.5px; cursor:pointer; }
+  .primary-btn:hover { background:#275e42; }
+  .ghost-btn { padding:11px 16px; border-radius:8px; border:1px solid var(--rule); background:none; color: var(--ink-soft); cursor:pointer; font-size:13.5px; display:flex; align-items:center; gap:6px; justify-content:center; }
+  .ghost-btn.danger { color: var(--rust); border-color: var(--rust); }
+  .btn-row { display:flex; gap:10px; margin-top:14px; }
+  .btn-row .primary-btn { margin-top:0; flex:1; }
+
+  .recurring-form { background: var(--paper-2); border-radius:8px; padding:14px; margin-bottom:14px; }
+
+  .budget-bars { display:flex; flex-direction:column; gap:14px; }
+  .budget-row-top { display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:5px; }
+  .budget-cat { display:flex; align-items:center; gap:6px; }
+  .budget-amt { font-family:'IBM Plex Mono', monospace; color: var(--ink-soft); }
+  .budget-amt.over { color: var(--rust); font-weight:600; }
+  .budget-track { height:7px; background: var(--paper-2); border-radius:4px; overflow:hidden; }
+  .budget-fill { height:100%; border-radius:4px; transition:width 0.4s; }
+  .top-cat-rank { font-family:'Fraunces', serif; font-weight:700; color: var(--ink-faint); width:16px; }
+
+  .insight-cards { display:flex; flex-direction:column; gap:10px; }
+  .insight-card { display:flex; align-items:flex-start; gap:9px; font-size:13px; background: var(--paper-2); padding:11px 13px; border-radius:8px; line-height:1.5; }
+  .insight-card.warn { background: rgba(168,68,44,0.1); }
+  .insight-card .pos { color: var(--emerald); }
+  .insight-card .neg { color: var(--rust); }
+
+  .modal-backdrop { position:fixed; inset:0; background: rgba(28,42,34,0.55); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .modal { background: var(--paper-3); border-radius:12px; width:100%; max-width:440px; max-height:86vh; overflow:auto; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
+  .modal-header { display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--rule); font-family:'Fraunces', serif; font-weight:600; font-size:16px; }
+  .modal-body { padding:16px 18px; }
+  .modal-footer { display:flex; gap:10px; padding:14px 18px; border-top:1px solid var(--rule); }
+  .modal-footer .primary-btn, .modal-footer .ghost-btn { margin-top:0; flex:1; }
+  .settings-cat-list { display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+  .settings-cat-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .settings-cat-row .amount-input-wrap { width:110px; }
+
+  .color-swatches { display:flex; flex-wrap:wrap; gap:8px; }
+  .color-swatches.small { align-items:center; gap:6px; margin-top:4px; }
+  .swatch { width:22px; height:22px; border-radius:50%; border:2px solid transparent; cursor:pointer; }
+  .swatch.active { border-color: var(--ink); }
+  .color-swatches.small .swatch { width:16px; height:16px; }
+
+  .cat-manage-card { padding:14px 16px; }
+  .cat-manage-top { display:flex; align-items:center; gap:8px; }
+  .inline-edit { flex:1; border:none; background:none; font-family:'Fraunces', serif; font-weight:600; font-size:14.5px; color: var(--ink); padding:4px 2px; border-radius:4px; }
+  .inline-edit:focus { background: var(--paper); outline:1px solid var(--rule); }
+  .sub-list { margin-top:10px; padding-top:10px; border-top:1px dashed var(--rule); display:flex; flex-direction:column; gap:6px; }
+  .sub-row { display:flex; align-items:center; gap:8px; font-size:12.5px; color: var(--ink-soft); }
+  .sub-dot { width:5px; height:5px; border-radius:50%; background: var(--ink-faint); margin-left:4px; }
+  .sub-name { flex:1; }
+  .sub-add-row { display:flex; gap:6px; margin-top:4px; }
+  .sub-add-row .text-input { flex:1; }
+
+  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background: var(--header-bg); color:#fff; padding:10px 18px; border-radius:30px; font-size:13px; display:flex; align-items:center; gap:7px; box-shadow:0 6px 20px rgba(0,0,0,0.25); z-index:60; }
+
+  .footer-note { text-align:center; font-size:11.5px; color: var(--ink-soft); padding: 14px 0 4px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ============================== storage (localStorage-backed, browser only) ============================== */
+window.storage = {
+  get: async (key) => {
+    try { const v = localStorage.getItem(key); return v ? { key, value: v } : null; }
+    catch (e) { return null; }
+  },
+  set: async (key, value) => {
+    try { localStorage.setItem(key, value); return { key, value }; }
+    catch (e) { return null; }
+  },
+};
+
+/* ============================== icon library (emoji, no external deps) ============================== */
+
+const EMOJI = {
+  Coffee: "☕", Car: "🚗", ShoppingBag: "🛍️", Home: "🏠", Film: "🎬", HeartPulse: "🩺",
+  GraduationCap: "🎓", Receipt: "🧾", Wallet: "👛", Briefcase: "💼", Gift: "🎁",
+  TrendingUp: "📈", Utensils: "🍽️", Plane: "✈️", Dumbbell: "🏋️", Music: "🎵",
+  Smartphone: "📱", PawPrint: "🐾", Wrench: "🔧", Fuel: "⛽", Bus: "🚌", Train: "🚆",
+  Tag: "🏷️", Bike: "🚲", Baby: "👶", Shirt: "👕", Gamepad2: "🎮", BookOpen: "📖",
+};
+const ICON_NAMES = Object.keys(EMOJI);
+function DynIcon({ name, size = 15 }) {
+  return <span style={{ fontSize: size, lineHeight: 1, display: "inline-block" }}>{EMOJI[name] || "🏷️"}</span>;
+}
+function Emo({ children, size = 15 }) {
+  return <span style={{ fontSize: size, lineHeight: 1, display: "inline-block" }}>{children}</span>;
+}
+
+const COLOR_PRESETS = [
+  "#A8442C", "#2E5E8C", "#7A4FA0", "#B98A22", "#C1477A", "#2F6F4E",
+  "#5B4636", "#3E7C7C", "#8C3B62", "#4A6B3E", "#8A5A2B", "#6B6B6B",
+];
+
+const CURRENCIES = ["$", "€", "£", "¥", "₹", "A$", "C$", "₩", "₽", "R$", "₺", "CHF"];
+const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", quarterly: "Quarterly", yearly: "Yearly" };
+const PERIODS = ["day", "week", "fortnight", "month", "quarter", "year", "all"];
+const PERIOD_LABEL = { day: "Day", week: "Week", fortnight: "Fortnight", month: "Month", quarter: "3-Month", year: "Year", all: "All" };
+const STORAGE_KEY = "ledger-app-state-v2";
+
+/* ============================== default categories ============================== */
+
+function defaultCategories() {
+  return {
+    expense: [
+      { id: "food", name: "Food & Dining", color: "#A8442C", icon: "Coffee", subs: [
+        { id: "food-general", name: "General", keywords: ["food"] },
+        { id: "food-groceries", name: "Groceries", keywords: ["grocery", "groceries", "supermarket"] },
+        { id: "food-restaurants", name: "Restaurants & Cafes", keywords: ["restaurant", "cafe", "café", "coffee", "starbucks", "lunch", "dinner", "breakfast", "takeout"] },
+      ] },
+      { id: "transport", name: "Transport", color: "#2E5E8C", icon: "Car", subs: [
+        { id: "transport-general", name: "General", keywords: [] },
+        { id: "transport-rideshare", name: "Uber / Rideshare", keywords: ["uber", "lyft", "taxi"] },
+        { id: "transport-public", name: "Public Transport", keywords: ["bus", "train", "metro", "tram"] },
+        { id: "transport-fuel", name: "Fuel & Parking", keywords: ["fuel", "gas", "petrol", "parking", "toll"] },
+      ] },
+      { id: "shopping", name: "Shopping", color: "#7A4FA0", icon: "ShoppingBag", subs: [
+        { id: "shopping-general", name: "General", keywords: ["amazon", "shop", "clothes", "mall", "store", "shoes"] },
+      ] },
+      { id: "bills", name: "Bills & Utilities", color: "#B98A22", icon: "Receipt", subs: [
+        { id: "bills-general", name: "General", keywords: ["bill", "utility"] },
+        { id: "bills-subscriptions", name: "Subscriptions", keywords: ["netflix", "spotify", "subscription"] },
+        { id: "bills-housing", name: "Rent & Housing", keywords: ["rent", "mortgage"] },
+      ] },
+      { id: "entertainment", name: "Entertainment", color: "#C1477A", icon: "Film", subs: [
+        { id: "entertainment-general", name: "General", keywords: ["movie", "cinema", "concert", "game"] },
+      ] },
+      { id: "health", name: "Health", color: "#2F6F4E", icon: "HeartPulse", subs: [
+        { id: "health-general", name: "General", keywords: ["pharmacy", "doctor", "gym", "medicine", "dentist"] },
+      ] },
+      { id: "education", name: "Education", color: "#3E7C7C", icon: "GraduationCap", subs: [
+        { id: "education-general", name: "General", keywords: ["book", "course", "tuition", "school"] },
+      ] },
+      { id: "other", name: "Other", color: "#6B6B6B", icon: "Tag", subs: [
+        { id: "other-general", name: "General", keywords: [] },
+      ] },
+    ],
+    income: [
+      { id: "salary", name: "Salary", color: "#2F6F4E", icon: "Briefcase", subs: [
+        { id: "salary-general", name: "General", keywords: ["salary", "payroll", "wage"] },
+      ] },
+      { id: "freelance", name: "Freelance", color: "#3E7C7C", icon: "TrendingUp", subs: [
+        { id: "freelance-general", name: "General", keywords: ["freelance", "client", "invoice"] },
+      ] },
+      { id: "gift-income", name: "Gifts", color: "#C1477A", icon: "Gift", subs: [
+        { id: "gift-income-general", name: "General", keywords: ["gift"] },
+      ] },
+      { id: "investment", name: "Investments", color: "#B98A22", icon: "TrendingUp", subs: [
+        { id: "investment-general", name: "General", keywords: ["dividend", "interest", "investment"] },
+      ] },
+      { id: "other-income", name: "Other", color: "#6B6B6B", icon: "Tag", subs: [
+        { id: "other-income-general", name: "General", keywords: [] },
+      ] },
+    ],
+  };
+}
+
+/* ============================== date helpers ============================== */
+
+const pad = n => String(n).padStart(2, "0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseIso = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+const addMonths = (d, n) => { const r = new Date(d); const day = r.getDate(); r.setMonth(r.getMonth() + n); if (r.getDate() < day) r.setDate(0); return r; };
+const addYears = (d, n) => { const r = new Date(d); r.setFullYear(r.getFullYear() + n); return r; };
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const startOfWeek = d => { const r = new Date(d); const day = (r.getDay() + 6) % 7; r.setDate(r.getDate() - day); return r; };
+const startOfMonth = d => new Date(d.getFullYear(), d.getMonth(), 1);
+const todayStripped = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+
+function addPeriodStep(date, freq, n) {
+  if (freq === "weekly") return addDays(date, 7 * n);
+  if (freq === "fortnightly") return addDays(date, 14 * n);
+  if (freq === "quarterly") return addMonths(date, 3 * n);
+  if (freq === "yearly") return addYears(date, n);
+  return addMonths(date, n);
+}
+
+function getPeriodRange(period, anchor, transactions) {
+  if (period === "day") return { start: anchor, end: anchor };
+  if (period === "week") { const s = startOfWeek(anchor); return { start: s, end: addDays(s, 6) }; }
+  if (period === "fortnight") { const s = startOfWeek(anchor); return { start: s, end: addDays(s, 13) }; }
+  if (period === "month") { const s = startOfMonth(anchor); const e = addDays(addMonths(s, 1), -1); return { start: s, end: e }; }
+  if (period === "quarter") { const qm = Math.floor(anchor.getMonth() / 3) * 3; const s = new Date(anchor.getFullYear(), qm, 1); const e = addDays(addMonths(s, 3), -1); return { start: s, end: e }; }
+  if (period === "year") { return { start: new Date(anchor.getFullYear(), 0, 1), end: new Date(anchor.getFullYear(), 11, 31) }; }
+  let min = todayStripped(), max = todayStripped();
+  for (const t of transactions) { const d = parseIso(t.date); if (d < min) min = d; if (d > max) max = d; }
+  return { start: min, end: max };
+}
+
+function getMonthMatrix(anchor) {
+  const first = startOfMonth(anchor);
+  const gridStart = startOfWeek(first);
+  const weeks = [];
+  let cursor = new Date(gridStart);
+  for (let w = 0; w < 6; w++) {
+    const week = [];
+    for (let d = 0; d < 7; d++) { week.push(new Date(cursor)); cursor = addDays(cursor, 1); }
+    weeks.push(week);
+  }
+  return weeks;
+}
+
+/* ============================== category helpers ============================== */
+
+function detectCategory(desc, kind, categories) {
+  const s = desc.toLowerCase();
+  const list = categories[kind] || [];
+  for (const p of list) {
+    for (const sub of p.subs) {
+      if (sub.keywords && sub.keywords.some(k => s.includes(k))) return { parentId: p.id, subId: sub.id };
+    }
+  }
+  const fallback = list[list.length - 1];
+  return fallback ? { parentId: fallback.id, subId: fallback.subs[0] ? fallback.subs[0].id : null } : { parentId: null, subId: null };
+}
+
+function getMeta(kind, parentId, subId, categories) {
+  const list = categories[kind] || [];
+  const parent = list.find(p => p.id === parentId) || list[list.length - 1];
+  const sub = parent ? (parent.subs.find(s => s.id === subId) || parent.subs[0]) : null;
+  return {
+    parent, sub,
+    name: parent ? parent.name : "Other",
+    subName: sub ? sub.name : "General",
+    color: parent ? parent.color : "#6B6B6B",
+    icon: parent ? parent.icon : "Tag",
+    label: parent ? (sub && sub.name !== "General" ? `${parent.name} · ${sub.name}` : parent.name) : "Other",
+  };
+}
+
+function money(n, currency) {
+  const v = Number(n) || 0;
+  return `${currency}${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+
+function processRecurring(transactions, recurring) {
+  const existingIds = new Set(transactions.map(t => t.id));
+  const next = [...transactions];
+  const today = todayStripped();
+  const updated = recurring.map(r => ({ ...r }));
+  let changed = false;
+  for (const r of updated) {
+    if (!r.active) continue;
+    let cursor = r.lastAdded ? addPeriodStep(parseIso(r.lastAdded), r.frequency, 1) : parseIso(r.startDate);
+    let count = 0;
+    while (cursor <= today && count < 400) {
+      const id = `rec-${r.id}-${iso(cursor)}`;
+      if (!existingIds.has(id)) {
+        next.push({ id, type: r.type, parentId: r.parentId, subId: r.subId, amount: Number(r.amount), description: r.name, date: iso(cursor), recurringId: r.id });
+        existingIds.add(id);
+        changed = true;
+      }
+      r.lastAdded = iso(cursor);
+      cursor = addPeriodStep(cursor, r.frequency, 1);
+      count++;
+    }
+  }
+  return { transactions: next, recurring: updated, changed };
+}
+
+/* ============================== small UI atoms ============================== */
+
+function EmptyNote({ children }) { return <div className="empty-note">{children}</div>; }
+
+function CategoryPicker({ kind, categories, parentId, subId, onChange }) {
+  const list = categories[kind] || [];
+  const parent = list.find(p => p.id === parentId) || list[0];
+  return (
+    <>
+      <div className="cat-chips">
+        {list.map(p => (
+          <button key={p.id} type="button" className={`cat-chip ${parentId === p.id ? "active" : ""}`}
+            style={parentId === p.id ? { borderColor: p.color, color: p.color, background: `${p.color}14` } : undefined}
+            onClick={() => onChange(p.id, p.subs[0] ? p.subs[0].id : null)}>
+            <DynIcon name={p.icon} size={14} /> {p.name}
+          </button>
+        ))}
+      </div>
+      {parent && parent.subs.length > 1 && (
+        <div className="cat-chips sub">
+          {parent.subs.map(s => (
+            <button key={s.id} type="button" className={`cat-chip sub ${subId === s.id ? "active" : ""}`}
+              onClick={() => onChange(parent.id, s.id)}>{s.name}</button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function BudgetStamp({ percent, budgetSet }) {
+  const clamped = Math.max(0, Math.min(percent, 100));
+  const over = percent > 100;
+  const r = 44, c = 2 * Math.PI * r;
+  const offset = c * (1 - clamped / 100);
+  const color = over ? "var(--rust)" : percent > 85 ? "var(--gold)" : "var(--emerald)";
+  return (
+    <div className="stamp-wrap">
+      <svg width="100" height="100" viewBox="0 0 108 108">
+        <circle cx="54" cy="54" r="50" fill="none" stroke="var(--rule)" strokeWidth="1" strokeDasharray="2 4" />
+        <circle cx="54" cy="54" r={r} fill="none" stroke="rgba(237,232,217,0.18)" strokeWidth="7" />
+        <circle cx="54" cy="54" r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={offset} transform="rotate(-90 54 54)"
+          style={{ transition: "stroke-dashoffset 0.6s ease, stroke 0.3s" }} />
+        <text x="54" y="50" textAnchor="middle" className="stamp-pct">{budgetSet ? `${Math.round(percent)}%` : "—"}</text>
+        <text x="54" y="66" textAnchor="middle" className="stamp-label">{over ? "OVER" : "USED"}</text>
+      </svg>
+    </div>
+  );
+}
+
+function Donut({ data, size = 200, thickness = 30 }) {
+  const total = data.reduce((s, d) => s + d.value, 0) || 1;
+  const r = (size - thickness) / 2;
+  const c = 2 * Math.PI * r;
+  let acc = 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--paper-2)" strokeWidth={thickness} />
+      <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+        {data.map((d, i) => {
+          const frac = d.value / total;
+          const segLen = Math.max(0, frac * c - (data.length > 1 ? 2 : 0));
+          const dashoffset = -acc;
+          acc += frac * c;
+          return (
+            <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={d.color} strokeWidth={thickness}
+              strokeDasharray={`${segLen} ${c - segLen}`} strokeDashoffset={dashoffset} strokeLinecap="butt">
+              <title>{`${d.name}: ${d.value.toFixed(2)}`}</title>
+            </circle>
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
+/* ============================== app ============================== */
+
+function App() {
+  const [loaded, setLoaded] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const [recurring, setRecurring] = useState([]);
+  const [categories, setCategories] = useState(defaultCategories());
+  const [budgets, setBudgets] = useState({ overall: 0, categories: {} });
+  const [currency, setCurrency] = useState("$");
+
+  const [tab, setTab] = useState("overview");
+  const [period, setPeriod] = useState("month");
+  const [anchor, setAnchor] = useState(todayStripped());
+  const [showSettings, setShowSettings] = useState(false);
+  const [editTxn, setEditTxn] = useState(null);
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
+
+  function showToast(msg) {
+    setToast(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2200);
+  }
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await window.storage.get(STORAGE_KEY);
+        if (res && res.value) {
+          const data = JSON.parse(res.value);
+          const cats = data.categories || defaultCategories();
+          const { transactions: tx, recurring: rec, changed } = processRecurring(data.transactions || [], data.recurring || []);
+          setTransactions(tx);
+          setRecurring(rec);
+          setCategories(cats);
+          setBudgets(data.budgets || { overall: 0, categories: {} });
+          setCurrency(data.currency || "$");
+          if (changed) showToast("Recurring items recorded");
+        }
+      } catch (e) { /* fresh start */ }
+      setLoaded(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    (async () => {
+      try {
+        await window.storage.set(STORAGE_KEY, JSON.stringify({ transactions, recurring, categories, budgets, currency }));
+      } catch (e) { console.error("Save failed", e); }
+    })();
+  }, [loaded, transactions, recurring, categories, budgets, currency]);
+
+  const allTimeIncome = useMemo(() => transactions.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0), [transactions]);
+  const allTimeExpense = useMemo(() => transactions.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0), [transactions]);
+  const allTimeBalance = allTimeIncome - allTimeExpense;
+
+  const now = todayStripped();
+  const thisMonthRange = getPeriodRange("month", now, transactions);
+  const thisMonthExpenses = transactions.filter(t => t.type === "expense" && parseIso(t.date) >= thisMonthRange.start && parseIso(t.date) <= thisMonthRange.end);
+  const thisMonthTotal = thisMonthExpenses.reduce((s, t) => s + Number(t.amount), 0);
+  const budgetPercent = budgets.overall > 0 ? (thisMonthTotal / budgets.overall) * 100 : 0;
+
+  function addTransaction(t) {
+    setTransactions(prev => [...prev, { id: uid(), ...t }]);
+    showToast(t.type === "income" ? "Income recorded" : "Expense recorded");
+  }
+  function updateTransaction(updated) {
+    setTransactions(prev => prev.map(t => t.id === updated.id ? updated : t));
+    showToast("Entry updated");
+    setEditTxn(null);
+  }
+  function deleteTransaction(id) { setTransactions(prev => prev.filter(t => t.id !== id)); }
+  function addRecurring(item) {
+    setRecurring(prev => {
+      const next = [...prev, { ...item, id: uid(), lastAdded: null, active: true }];
+      const { transactions: tx } = processRecurring(transactions, next);
+      setTransactions(tx);
+      return next;
+    });
+    showToast("Recurring item set up");
+  }
+  function toggleRecurring(id) { setRecurring(prev => prev.map(r => r.id === id ? { ...r, active: !r.active } : r)); }
+  function deleteRecurring(id) { setRecurring(prev => prev.filter(r => r.id !== id)); }
+
+  function navPeriod(dir) {
+    if (period === "all") return;
+    setAnchor(a => {
+      if (period === "day") return addDays(a, dir);
+      if (period === "week") return addDays(a, dir * 7);
+      if (period === "fortnight") return addDays(a, dir * 14);
+      if (period === "month") return addMonths(a, dir);
+      if (period === "quarter") return addMonths(a, dir * 3);
+      return addYears(a, dir);
+    });
+  }
+  function goToday() { setAnchor(todayStripped()); }
+
+  if (!loaded) {
+    return <div className="ledger-app"><div className="boot"><Emo size={20}>📒</Emo> <span>Opening the ledger…</span></div></div>;
+  }
+
+  return (
+    <div className="ledger-app">
+      <header className="app-header">
+        <div className="header-left">
+          <div className="brand"><Emo size={20}>📒</Emo> <span>Ledger</span></div>
+          <div className="brand-sub">daily spending, kept honest</div>
+        </div>
+        <div className="header-mid">
+          <div className="stat"><div className="stat-label">This month</div><div className="stat-value">{money(thisMonthTotal, currency)}</div></div>
+          <div className="stat"><div className="stat-label">Budget</div><div className="stat-value">{budgets.overall > 0 ? money(budgets.overall, currency) : "not set"}</div></div>
+        </div>
+        <div className="header-right">
+          <BudgetStamp percent={budgetPercent} budgetSet={budgets.overall > 0} />
+          <button className="icon-btn" onClick={() => setShowSettings(true)} title="Settings"><Emo size={17}>⚙️</Emo></button>
+        </div>
+      </header>
+
+      <nav className="tab-bar">
+        {[["overview", "Overview"], ["add", "Add"], ["recurring", "Recurring"], ["categories", "Categories"], ["insights", "Insights"]].map(([key, label]) => (
+          <button key={key} className={`tab-btn ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>{label}</button>
+        ))}
+      </nav>
+
+      <main className="app-main">
+        {tab === "overview" && (
+          <OverviewTab period={period} setPeriod={setPeriod} anchor={anchor} navPeriod={navPeriod} goToday={goToday}
+            transactions={transactions} categories={categories} currency={currency} allTimeBalance={allTimeBalance}
+            onDelete={deleteTransaction} onEdit={setEditTxn}
+            openDay={(d) => { setAnchor(d); setPeriod("day"); }}
+            openMonth={(d) => { setAnchor(d); setPeriod("month"); }} />
+        )}
+        {tab === "add" && <AddTab onAdd={addTransaction} currency={currency} categories={categories} />}
+        {tab === "recurring" && (
+          <RecurringTab recurring={recurring} currency={currency} categories={categories}
+            onAdd={addRecurring} onToggle={toggleRecurring} onDelete={deleteRecurring} />
+        )}
+        {tab === "categories" && (
+          <CategoriesTab categories={categories} setCategories={setCategories}
+            transactions={transactions} setTransactions={setTransactions} showToast={showToast} />
+        )}
+        {tab === "insights" && <InsightsTab currency={currency} categories={categories} budgets={budgets} transactions={transactions} now={now} />}
+      </main>
+
+      {showSettings && (
+        <SettingsModal budgets={budgets} setBudgets={setBudgets} currency={currency} setCurrency={setCurrency}
+          categories={categories} onClose={() => setShowSettings(false)} />
+      )}
+      {editTxn && (
+        <EditModal txn={editTxn} categories={categories} currency={currency}
+          onSave={updateTransaction} onClose={() => setEditTxn(null)}
+          onDelete={(id) => { deleteTransaction(id); setEditTxn(null); }} />
+      )}
+      {toast && <div className="toast"><Emo size={13}>✓</Emo> {toast}</div>}
+      <div className="footer-note">Your data stays in this browser only — nothing is sent anywhere.</div>
+    </div>
+  );
+}
+
+/* ============================== Overview ============================== */
+
+function OverviewTab(props) {
+  const { period, setPeriod, anchor, navPeriod, goToday, transactions, categories, currency, allTimeBalance, onDelete, onEdit, openDay, openMonth } = props;
+  const [filterType, setFilterType] = useState("all");
+  const [filterCat, setFilterCat] = useState("all");
+
+  const range = useMemo(() => getPeriodRange(period, anchor, transactions), [period, anchor, transactions]);
+  const periodTxns = useMemo(() => transactions
+    .filter(t => { const d = parseIso(t.date); return d >= range.start && d <= range.end; })
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)), [transactions, range]);
+
+  const expenseTxns = periodTxns.filter(t => t.type === "expense");
+  const incomeTxns = periodTxns.filter(t => t.type === "income");
+  const expenseTotal = expenseTxns.reduce((s, t) => s + Number(t.amount), 0);
+  const incomeTotal = incomeTxns.reduce((s, t) => s + Number(t.amount), 0);
+  const net = incomeTotal - expenseTotal;
+
+  const catTotals = useMemo(() => {
+    const m = {};
+    for (const t of expenseTxns) m[t.parentId] = (m[t.parentId] || 0) + Number(t.amount);
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [expenseTxns]);
+  const pieData = catTotals.map(([parentId, value]) => {
+    const meta = getMeta("expense", parentId, null, categories);
+    return { name: meta.name, value, color: meta.color };
+  });
+
+  const filterCatOptions = categories[filterType === "income" ? "income" : "expense"] || [];
+  const visibleTxns = periodTxns.filter(t => {
+    if (filterType !== "all" && t.type !== filterType) return false;
+    if (filterCat !== "all" && t.parentId !== filterCat) return false;
+    return true;
+  });
+
+  const periodLabel = useMemo(() => {
+    if (period === "day") return anchor.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    if (period === "all") return "All time";
+    if (period === "quarter") return `Q${Math.floor(anchor.getMonth() / 3) + 1} ${anchor.getFullYear()}`;
+    if (period === "year") return String(anchor.getFullYear());
+    if (period === "month") return anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    return `${range.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${range.end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+  }, [period, anchor, range]);
+
+  return (
+    <div className="stack">
+      <div className="card balance-card">
+        <div className="balance-main">
+          <span className="balance-label"><Emo size={13}>⚖️</Emo> All-time balance</span>
+          <span className={`balance-value ${allTimeBalance < 0 ? "neg" : ""}`}>{money(allTimeBalance, currency)}</span>
+        </div>
+        <div className="balance-mini-row">
+          <div className="balance-mini"><Emo size={12}>↗</Emo> Income <b>{money(incomeTotal, currency)}</b></div>
+          <div className="balance-mini"><Emo size={12}>↘</Emo> Expenses <b>{money(expenseTotal, currency)}</b></div>
+          <div className="balance-mini">Net <b className={net < 0 ? "neg" : "pos"}>{money(net, currency)}</b></div>
+        </div>
+      </div>
+
+      <div className="period-switcher">
+        <div className="period-pills">
+          {PERIODS.map(p => <button key={p} className={`pill ${period === p ? "active" : ""}`} onClick={() => setPeriod(p)}>{PERIOD_LABEL[p]}</button>)}
+        </div>
+        <div className="period-nav">
+          <button className="icon-btn small" disabled={period === "all"} onClick={() => navPeriod(-1)}><Emo size={14}>‹</Emo></button>
+          <span className="period-label">{periodLabel}</span>
+          <button className="icon-btn small" disabled={period === "all"} onClick={() => navPeriod(1)}><Emo size={14}>›</Emo></button>
+          {period !== "all" && <button className="link-btn" onClick={goToday}>Today</button>}
+        </div>
+      </div>
+
+      {period === "month" && <MonthHeatmap anchor={anchor} transactions={transactions} onSelectDay={openDay} />}
+      {(period === "week" || period === "fortnight") && <PeriodBars range={range} transactions={transactions} onSelectDay={openDay} />}
+      {(period === "quarter" || period === "year") && <MonthGroupBars range={range} transactions={transactions} onSelectMonth={openMonth} />}
+      {period === "all" && <YearGroupBars transactions={transactions} />}
+
+      <div className="grid-2">
+        <div className="card">
+          <div className="card-title">Spending by category</div>
+          {pieData.length === 0 ? <EmptyNote>No expenses recorded for this period yet.</EmptyNote> : (
+            <div className="donut-wrap">
+              <Donut data={pieData} size={190} thickness={28} />
+              <div className="legend">
+                {pieData.map((d, i) => (
+                  <div key={i} className="legend-row">
+                    <span className="legend-dot" style={{ background: d.color }} />
+                    <span className="legend-name">{d.name}</span>
+                    <span className="legend-val">{money(d.value, currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-title-row"><div className="card-title">Register</div></div>
+          <div className="register-filters">
+            <div className="filter-pills">
+              {["all", "expense", "income"].map(f => (
+                <button key={f} className={`pill tiny ${filterType === f ? "active" : ""}`} onClick={() => { setFilterType(f); setFilterCat("all"); }}>
+                  {f === "all" ? "All" : f === "expense" ? "Expenses" : "Income"}
+                </button>
+              ))}
+            </div>
+            <select className="text-input tiny-select" value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+              <option value="all">All categories</option>
+              {filterCatOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          {visibleTxns.length === 0 ? <EmptyNote>Nothing here — a quiet ledger.</EmptyNote> : (
+            <div className="ledger-list">
+              {visibleTxns.slice(0, 50).map(t => {
+                const meta = getMeta(t.type, t.parentId, t.subId, categories);
+                return (
+                  <div key={t.id} className="ledger-row" onClick={() => onEdit(t)}>
+                    <span className="ledger-icon" style={{ background: `${meta.color}1f` }}><DynIcon name={meta.icon} size={14} /></span>
+                    <span className="ledger-desc">{t.description}<span className="ledger-cat">{meta.label}</span></span>
+                    <span className="ledger-date">{parseIso(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                    <span className={`ledger-amt ${t.type === "income" ? "pos" : ""}`}>{t.type === "income" ? "+" : "−"}{money(t.amount, currency)}</span>
+                    <button className="ledger-del" onClick={(e) => { e.stopPropagation(); onDelete(t.id); }} title="Delete"><Emo size={13}>🗑</Emo></button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MonthHeatmap({ anchor, transactions, onSelectDay }) {
+  const weeks = useMemo(() => getMonthMatrix(anchor), [anchor]);
+  const month = anchor.getMonth();
+  const today = todayStripped();
+  const byDate = useMemo(() => {
+    const m = {};
+    for (const t of transactions) { if (t.type !== "expense") continue; m[t.date] = (m[t.date] || 0) + Number(t.amount); }
+    return m;
+  }, [transactions]);
+  const dayTotals = weeks.flat().map(d => byDate[iso(d)] || 0);
+  const max = Math.max(1, ...dayTotals);
+
+  return (
+    <div className="card heatmap-card">
+      <div className="card-title">Spending calendar</div>
+      <div className="heatmap-weekdays">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(w => <span key={w}>{w}</span>)}</div>
+      <div className="heatmap-grid">
+        {weeks.map((week, wi) => week.map((d, di) => {
+          const outside = d.getMonth() !== month;
+          const total = byDate[iso(d)] || 0;
+          const intensity = total > 0 ? 0.18 + 0.72 * (total / max) : 0;
+          const isToday = sameDay(d, today);
+          return (
+            <button key={`${wi}-${di}`} className={`heat-cell ${outside ? "outside" : ""} ${isToday ? "is-today" : ""}`}
+              style={total > 0 ? { background: `rgba(168,68,44,${intensity})` } : undefined}
+              onClick={() => onSelectDay(d)} title={total > 0 ? `${d.toLocaleDateString()} — ${total.toFixed(2)}` : d.toLocaleDateString()}>
+              <span className="heat-daynum">{d.getDate()}</span>
+              {total > 0 && <span className="heat-amt">{total >= 1000 ? `${Math.round(total / 100) / 10}k` : Math.round(total)}</span>}
+            </button>
+          );
+        }))}
+      </div>
+      <div className="heatmap-scale">
+        <span>Less</span>
+        {[0.15, 0.35, 0.55, 0.75, 0.95].map((v, i) => <span key={i} className="scale-swatch" style={{ background: `rgba(168,68,44,${v})` }} />)}
+        <span>More</span>
+      </div>
+    </div>
+  );
+}
+
+function PeriodBars({ range, transactions, onSelectDay }) {
+  const days = [];
+  let c = new Date(range.start);
+  while (c <= range.end) { days.push(new Date(c)); c = addDays(c, 1); }
+  const totals = days.map(d => transactions.filter(t => t.type === "expense" && t.date === iso(d)).reduce((s, t) => s + Number(t.amount), 0));
+  const max = Math.max(1, ...totals);
+  const today = todayStripped();
+  return (
+    <div className="card">
+      <div className="card-title">{days.length > 7 ? "Fortnight at a glance" : "Week at a glance"}</div>
+      <div className="week-bars">
+        {days.map((d, i) => (
+          <button key={i} className="week-bar-col" onClick={() => onSelectDay(d)}>
+            <span className="week-bar-amt">{totals[i] > 0 ? Math.round(totals[i]) : ""}</span>
+            <span className="week-bar-track"><span className="week-bar-fill" style={{ height: `${Math.max(4, (totals[i] / max) * 100)}%` }} /></span>
+            <span className={`week-bar-label ${sameDay(d, today) ? "is-today" : ""}`}>{d.toLocaleDateString(undefined, { weekday: "short", ...(days.length > 7 ? { day: "numeric" } : {}) })}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MonthGroupBars({ range, transactions, onSelectMonth }) {
+  const months = [];
+  let c = startOfMonth(range.start);
+  while (c <= range.end) { months.push(new Date(c)); c = addMonths(c, 1); }
+  const totals = months.map(m => {
+    const e = getPeriodRange("month", m, transactions);
+    return transactions.filter(t => t.type === "expense" && parseIso(t.date) >= e.start && parseIso(t.date) <= e.end).reduce((s, t) => s + Number(t.amount), 0);
+  });
+  const max = Math.max(1, ...totals);
+  return (
+    <div className="card">
+      <div className="card-title">By month</div>
+      <div className="year-bars">
+        {months.map((m, i) => (
+          <button key={i} className="year-bar-col" onClick={() => onSelectMonth(m)} title={totals[i].toFixed(2)}>
+            <span className="year-bar-track"><span className="year-bar-fill" style={{ height: `${Math.max(3, (totals[i] / max) * 100)}%` }} /></span>
+            <span className="year-bar-label">{m.toLocaleDateString(undefined, { month: "short" })}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function YearGroupBars({ transactions }) {
+  const years = Array.from(new Set(transactions.map(t => parseIso(t.date).getFullYear()))).sort();
+  if (years.length === 0) return null;
+  const totals = years.map(y => transactions.filter(t => t.type === "expense" && parseIso(t.date).getFullYear() === y).reduce((s, t) => s + Number(t.amount), 0));
+  const max = Math.max(1, ...totals);
+  return (
+    <div className="card">
+      <div className="card-title">By year</div>
+      <div className="year-bars">
+        {years.map((y, i) => (
+          <div key={y} className="year-bar-col">
+            <span className="year-bar-track"><span className="year-bar-fill" style={{ height: `${Math.max(3, (totals[i] / max) * 100)}%` }} /></span>
+            <span className="year-bar-label">{y}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ============================== Add ============================== */
+
+function AddTab({ onAdd, currency, categories }) {
+  const [mode, setMode] = useState("expense");
+  return (
+    <div className="stack narrow">
+      <div className="period-pills wide">
+        {[["expense", "Expense"], ["income", "Income"], ["split", "Split bill"]].map(([k, l]) => (
+          <button key={k} className={`pill ${mode === k ? "active" : ""}`} onClick={() => setMode(k)}>{l}</button>
+        ))}
+      </div>
+      {mode !== "split"
+        ? <TxnForm type={mode} onAdd={onAdd} currency={currency} categories={categories} />
+        : <SplitBillForm onAdd={onAdd} currency={currency} categories={categories} />}
+    </div>
+  );
+}
+
+function TxnForm({ type, onAdd, currency, categories }) {
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [parentId, setParentId] = useState(categories[type][0] && categories[type][0].id);
+  const [subId, setSubId] = useState(categories[type][0] && categories[type][0].subs[0] && categories[type][0].subs[0].id);
+  const [catTouched, setCatTouched] = useState(false);
+  const [date, setDate] = useState(iso(todayStripped()));
+
+  useEffect(() => {
+    if (!catTouched && description.trim()) {
+      const d = detectCategory(description, type, categories);
+      setParentId(d.parentId); setSubId(d.subId);
+    }
+  }, [description]); // eslint-disable-line
+
+  function submit() {
+    if (!amount || Number(amount) <= 0 || !parentId) return;
+    onAdd({ type, description: description.trim() || getMeta(type, parentId, subId, categories).label, amount: Number(amount), parentId, subId, date });
+    setDescription(""); setAmount(""); setCatTouched(false); setDate(iso(todayStripped()));
+  }
+
+  const meta = getMeta(type, parentId, subId, categories);
+
+  return (
+    <div className="card">
+      <div className="card-title">{type === "expense" ? "Record an expense" : "Record income"}</div>
+      <label className="field-label">{type === "expense" ? "What was it for?" : "What was it from?"}</label>
+      <input className="text-input" placeholder={type === "expense" ? "e.g. coffee with Sam, Uber to work" : "e.g. monthly salary, freelance invoice"} value={description} onChange={e => setDescription(e.target.value)} />
+
+      {description.trim() && (
+        <div className="detect-row">
+          <Emo size={13}>✨</Emo><span>Detected category:</span>
+          <span className="detect-chip"><DynIcon name={meta.icon} size={13} /> {meta.label}</span>
+        </div>
+      )}
+
+      <div className="field-row">
+        <div>
+          <label className="field-label">Amount</label>
+          <div className="amount-input-wrap">
+            <span className="amount-prefix">{currency}</span>
+            <input className="text-input mono" type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="field-label">Date</label>
+          <input className="text-input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+      </div>
+
+      <label className="field-label">Category</label>
+      <CategoryPicker kind={type} categories={categories} parentId={parentId} subId={subId} onChange={(p, s) => { setParentId(p); setSubId(s); setCatTouched(true); }} />
+
+      <button className="primary-btn" onClick={submit}><Emo size={15}>➕</Emo> {type === "expense" ? "Record expense" : "Record income"}</button>
+    </div>
+  );
+}
+
+function SplitBillForm({ onAdd, currency, categories }) {
+  const [description, setDescription] = useState("");
+  const [total, setTotal] = useState("");
+  const [people, setPeople] = useState(2);
+  const [yourShare, setYourShare] = useState("");
+  const [shareTouched, setShareTouched] = useState(false);
+  const [parentId, setParentId] = useState(categories.expense[0] && categories.expense[0].id);
+  const [subId, setSubId] = useState(categories.expense[0] && categories.expense[0].subs[0] && categories.expense[0].subs[0].id);
+  const [date, setDate] = useState(iso(todayStripped()));
+
+  const equalShare = total && people > 0 ? Number(total) / Number(people) : 0;
+  const displayedShare = shareTouched ? yourShare : (equalShare ? equalShare.toFixed(2) : "");
+  const othersOwe = total && people > 1 ? (Number(total) - Number(displayedShare || 0)) / (Number(people) - 1) : 0;
+
+  function submit() {
+    const share = Number(displayedShare);
+    if (!share || share <= 0 || !parentId) return;
+    onAdd({ type: "expense", description: `${description.trim() || "Split bill"} (split ${people} ways)`, amount: share, parentId, subId, date });
+    setDescription(""); setTotal(""); setPeople(2); setYourShare(""); setShareTouched(false); setDate(iso(todayStripped()));
+  }
+
+  return (
+    <div className="card">
+      <div className="card-title"><Emo size={15}>👥</Emo> Split a bill</div>
+      <label className="field-label">What's the bill for?</label>
+      <input className="text-input" placeholder="e.g. dinner at Nonna's" value={description} onChange={e => setDescription(e.target.value)} />
+
+      <div className="field-row">
+        <div>
+          <label className="field-label">Total bill</label>
+          <div className="amount-input-wrap"><span className="amount-prefix">{currency}</span>
+            <input className="text-input mono" type="number" min="0" step="0.01" placeholder="0.00" value={total} onChange={e => setTotal(e.target.value)} /></div>
+        </div>
+        <div>
+          <label className="field-label">Split between</label>
+          <input className="text-input mono" type="number" min="1" step="1" value={people} onChange={e => setPeople(e.target.value)} />
+        </div>
+      </div>
+
+      <label className="field-label">Your share</label>
+      <div className="amount-input-wrap"><span className="amount-prefix">{currency}</span>
+        <input className="text-input mono" type="number" min="0" step="0.01" value={displayedShare} onChange={e => { setYourShare(e.target.value); setShareTouched(true); }} placeholder="0.00" /></div>
+      {total && people > 1 && (
+        <div className="detect-row"><Emo size={13}>✨</Emo><span>Each of the other {people - 1} {people - 1 === 1 ? "person" : "people"} owes ≈ {money(othersOwe, currency)}</span></div>
+      )}
+
+      <label className="field-label">Category</label>
+      <CategoryPicker kind="expense" categories={categories} parentId={parentId} subId={subId} onChange={(p, s) => { setParentId(p); setSubId(s); }} />
+
+      <label className="field-label">Date</label>
+      <input className="text-input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+
+      <button className="primary-btn" onClick={submit}><Emo size={15}>➕</Emo> Record my share</button>
+      <EmptyNote>Only your share is added to the ledger — the rest is just here for reference.</EmptyNote>
+    </div>
+  );
+}
+
+/* ============================== Recurring ============================== */
+
+function RecurringTab({ recurring, currency, categories, onAdd, onToggle, onDelete }) {
+  const [showForm, setShowForm] = useState(false);
+  const [type, setType] = useState("expense");
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [parentId, setParentId] = useState(categories.expense[0] && categories.expense[0].id);
+  const [subId, setSubId] = useState(categories.expense[0] && categories.expense[0].subs[0] && categories.expense[0].subs[0].id);
+  const [frequency, setFrequency] = useState("monthly");
+  const [startDate, setStartDate] = useState(iso(todayStripped()));
+
+  function switchType(t) { setType(t); setParentId(categories[t][0] && categories[t][0].id); setSubId(categories[t][0] && categories[t][0].subs[0] && categories[t][0].subs[0].id); }
+  function submit() {
+    if (!name.trim() || !amount || Number(amount) <= 0) return;
+    onAdd({ name: name.trim(), amount, type, parentId, subId, frequency, startDate });
+    setName(""); setAmount(""); setFrequency("monthly"); setStartDate(iso(todayStripped())); setShowForm(false);
+  }
+
+  return (
+    <div className="stack narrow">
+      <div className="card">
+        <div className="card-title-row">
+          <div className="card-title">Recurring &amp; term items</div>
+          {!showForm && <button className="link-btn" onClick={() => setShowForm(true)}><Emo size={13}>➕</Emo> New</button>}
+        </div>
+
+        {showForm && (
+          <div className="recurring-form">
+            <div className="period-pills">
+              {[["expense", "Expense"], ["income", "Income"]].map(([k, l]) => (
+                <button key={k} className={`pill ${type === k ? "active" : ""}`} onClick={() => switchType(k)}>{l}</button>
+              ))}
+            </div>
+            <label className="field-label">Name</label>
+            <input className="text-input" placeholder={type === "expense" ? "e.g. Rent, Spotify, Gym membership" : "e.g. Salary, Rental income"} value={name} onChange={e => setName(e.target.value)} />
+            <div className="field-row">
+              <div>
+                <label className="field-label">Amount</label>
+                <div className="amount-input-wrap"><span className="amount-prefix">{currency}</span>
+                  <input className="text-input mono" type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+              </div>
+              <div>
+                <label className="field-label">Frequency</label>
+                <select className="text-input" value={frequency} onChange={e => setFrequency(e.target.value)}>
+                  {Object.entries(FREQ_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+            <label className="field-label">Category</label>
+            <CategoryPicker kind={type} categories={categories} parentId={parentId} subId={subId} onChange={(p, s) => { setParentId(p); setSubId(s); }} />
+            <label className="field-label">Starts</label>
+            <input className="text-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <div className="btn-row">
+              <button className="primary-btn" onClick={submit}><Emo size={14}>🔁</Emo> Save recurring item</button>
+              <button className="ghost-btn" onClick={() => setShowForm(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {recurring.length === 0 && !showForm ? (
+          <EmptyNote>No recurring items yet. Add rent, salary, subscriptions, or any fixed term expense or income and it will auto-record itself on schedule.</EmptyNote>
+        ) : (
+          <div className="recurring-list">
+            {recurring.map(r => {
+              const meta = getMeta(r.type, r.parentId, r.subId, categories);
+              const next = iso(addPeriodStep(parseIso(r.lastAdded || r.startDate), r.frequency, r.lastAdded ? 1 : 0));
+              return (
+                <div key={r.id} className={`recurring-row ${!r.active ? "paused" : ""}`}>
+                  <span className="ledger-icon" style={{ background: `${meta.color}1f` }}><DynIcon name={meta.icon} size={14} /></span>
+                  <span className="recurring-name">{r.name}<span className="ledger-cat">{FREQ_LABEL[r.frequency]} · {r.type === "income" ? "income" : "expense"} · next {next}</span></span>
+                  <span className={`ledger-amt ${r.type === "income" ? "pos" : ""}`}>{r.type === "income" ? "+" : "−"}{money(r.amount, currency)}</span>
+                  <button className="icon-btn small" onClick={() => onToggle(r.id)} title={r.active ? "Pause" : "Resume"}>{r.active ? <Emo size={12}>⏸</Emo> : <Emo size={12}>▶</Emo>}</button>
+                  <button className="ledger-del" onClick={() => onDelete(r.id)} title="Delete"><Emo size={13}>🗑</Emo></button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================== Categories management ============================== */
+
+function CategoriesTab({ categories, setCategories, transactions, setTransactions, showToast }) {
+  const [kind, setKind] = useState("expense");
+  const [newParentName, setNewParentName] = useState("");
+  const [newParentColor, setNewParentColor] = useState(COLOR_PRESETS[0]);
+  const [newParentIcon, setNewParentIcon] = useState(ICON_NAMES[0]);
+  const [subDrafts, setSubDrafts] = useState({});
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const pendingTimer = useRef(null);
+
+  function armDelete(id) { setPendingDelete(id); clearTimeout(pendingTimer.current); pendingTimer.current = setTimeout(() => setPendingDelete(null), 3000); }
+  function updateList(fn) { setCategories(prev => ({ ...prev, [kind]: fn(prev[kind]) })); }
+
+  function addParent() {
+    if (!newParentName.trim()) return;
+    updateList(list => [...list, { id: uid(), name: newParentName.trim(), color: newParentColor, icon: newParentIcon, subs: [{ id: uid(), name: "General", keywords: [] }] }]);
+    setNewParentName("");
+    showToast("Category added");
+  }
+  function renameParent(id, name) { updateList(list => list.map(p => p.id === id ? { ...p, name } : p)); }
+  function recolorParent(id, color) { updateList(list => list.map(p => p.id === id ? { ...p, color } : p)); }
+  function reiconParent(id, icon) { updateList(list => list.map(p => p.id === id ? { ...p, icon } : p)); }
+  function deleteParent(id) {
+    const list = categories[kind];
+    if (list.length <= 1) return;
+    const fallback = list.find(p => p.id !== id) || list[0];
+    setCategories(prev => ({ ...prev, [kind]: prev[kind].filter(p => p.id !== id) }));
+    setTransactions(prev => prev.map(t => (t.type === kind && t.parentId === id) ? { ...t, parentId: fallback.id, subId: fallback.subs[0] && fallback.subs[0].id } : t));
+    setPendingDelete(null);
+    showToast("Category deleted");
+  }
+  function addSub(parentId) {
+    const name = (subDrafts[parentId] || "").trim();
+    if (!name) return;
+    updateList(list => list.map(p => p.id === parentId ? { ...p, subs: [...p.subs, { id: uid(), name, keywords: [] }] } : p));
+    setSubDrafts(prev => ({ ...prev, [parentId]: "" }));
+  }
+  function deleteSub(parentId, subId) {
+    const parent = categories[kind].find(p => p.id === parentId);
+    if (!parent || parent.subs.length <= 1) return;
+    const fallback = parent.subs.find(s => s.id !== subId) || parent.subs[0];
+    updateList(list => list.map(p => p.id === parentId ? { ...p, subs: p.subs.filter(s => s.id !== subId) } : p));
+    setTransactions(prev => prev.map(t => (t.type === kind && t.parentId === parentId && t.subId === subId) ? { ...t, subId: fallback.id } : t));
+  }
+
+  return (
+    <div className="stack narrow">
+      <div className="period-pills wide">
+        {[["expense", "Expense categories"], ["income", "Income categories"]].map(([k, l]) => (
+          <button key={k} className={`pill ${kind === k ? "active" : ""}`} onClick={() => setKind(k)}>{l}</button>
+        ))}
+      </div>
+
+      <div className="card">
+        <div className="card-title">Add a category</div>
+        <label className="field-label">Name</label>
+        <input className="text-input" placeholder="e.g. Pets, Travel, Side hustle" value={newParentName} onChange={e => setNewParentName(e.target.value)} />
+        <label className="field-label">Color</label>
+        <div className="color-swatches">
+          {COLOR_PRESETS.map(c => <button key={c} className={`swatch ${newParentColor === c ? "active" : ""}`} style={{ background: c }} onClick={() => setNewParentColor(c)} />)}
+        </div>
+        <label className="field-label">Icon</label>
+        <select className="text-input" value={newParentIcon} onChange={e => setNewParentIcon(e.target.value)}>
+          {ICON_NAMES.map(n => <option key={n} value={n}>{EMOJI[n]} {n}</option>)}
+        </select>
+        <button className="primary-btn" onClick={addParent}><Emo size={15}>➕</Emo> Add category</button>
+      </div>
+
+      <div className="stack" style={{ gap: 10 }}>
+        {categories[kind].map(p => (
+          <div key={p.id} className="card cat-manage-card">
+            <div className="cat-manage-top">
+              <DynIcon name={p.icon} size={17} />
+              <input className="inline-edit" value={p.name} onChange={e => renameParent(p.id, e.target.value)} />
+              {pendingDelete === p.id ? (
+                <button className="ghost-btn danger" onClick={() => deleteParent(p.id)}>Confirm delete?</button>
+              ) : (
+                <button className="icon-btn small" onClick={() => armDelete(p.id)} title="Delete category"><Emo size={13}>🗑</Emo></button>
+              )}
+            </div>
+            <div className="color-swatches small">
+              {COLOR_PRESETS.map(c => <button key={c} className={`swatch ${p.color === c ? "active" : ""}`} style={{ background: c }} onClick={() => recolorParent(p.id, c)} />)}
+              <select className="text-input tiny-select" value={p.icon} onChange={e => reiconParent(p.id, e.target.value)}>
+                {ICON_NAMES.map(n => <option key={n} value={n}>{EMOJI[n]} {n}</option>)}
+              </select>
+            </div>
+            <div className="sub-list">
+              {p.subs.map(s => (
+                <div key={s.id} className="sub-row">
+                  <span className="sub-dot" />
+                  <span className="sub-name">{s.name}</span>
+                  {p.subs.length > 1 && <button className="ledger-del" onClick={() => deleteSub(p.id, s.id)}><Emo size={12}>🗑</Emo></button>}
+                </div>
+              ))}
+              <div className="sub-add-row">
+                <input className="text-input tiny" placeholder="Add subcategory…" value={subDrafts[p.id] || ""}
+                  onChange={e => setSubDrafts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                  onKeyDown={e => { if (e.key === "Enter") addSub(p.id); }} />
+                <button className="icon-btn small" onClick={() => addSub(p.id)}><Emo size={13}>➕</Emo></button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <EmptyNote>Subcategories give you two layers — e.g. Transport → Uber and Transport → Public Transport both roll up into Transport.</EmptyNote>
+    </div>
+  );
+}
+
+/* ============================== Insights ============================== */
+
+function InsightsTab({ currency, categories, budgets, transactions, now }) {
+  const monthRange = getPeriodRange("month", now, transactions);
+  const lastMonthRange = getPeriodRange("month", addMonths(now, -1), transactions);
+  const inRange = (t, r) => { const d = parseIso(t.date); return d >= r.start && d <= r.end; };
+
+  const thisMonthExpenses = transactions.filter(t => t.type === "expense" && inRange(t, monthRange));
+  const thisMonthIncome = transactions.filter(t => t.type === "income" && inRange(t, monthRange));
+  const lastMonthExpenses = transactions.filter(t => t.type === "expense" && inRange(t, lastMonthRange));
+
+  const thisMonthTotal = thisMonthExpenses.reduce((s, t) => s + Number(t.amount), 0);
+  const thisMonthIncomeTotal = thisMonthIncome.reduce((s, t) => s + Number(t.amount), 0);
+  const lastMonthTotal = lastMonthExpenses.reduce((s, t) => s + Number(t.amount), 0);
+
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysElapsed = now.getDate();
+  const avgDaily = thisMonthTotal / Math.max(1, daysElapsed);
+  const projected = avgDaily * daysInMonth;
+  const change = lastMonthTotal > 0 ? ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100 : null;
+  const biggest = [...thisMonthExpenses].sort((a, b) => b.amount - a.amount)[0];
+
+  const catTotals = useMemo(() => {
+    const m = {};
+    for (const t of thisMonthExpenses) m[t.parentId] = (m[t.parentId] || 0) + Number(t.amount);
+    return m;
+  }, [thisMonthExpenses]);
+  const topCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const overBudgetCats = Object.entries(budgets.categories || {}).filter(([id, b]) => b > 0 && (catTotals[id] || 0) > b);
+  const spendDays = new Set(thisMonthExpenses.map(t => t.date)).size;
+  const quietDays = Math.max(0, daysElapsed - spendDays);
+  const projectedSavings = budgets.overall > 0 ? budgets.overall - projected : null;
+
+  return (
+    <div className="stack">
+      <div className="grid-2">
+        <div className="card">
+          <div className="card-title">Budget by category</div>
+          {Object.keys(budgets.categories || {}).length === 0 ? <EmptyNote>Set category budgets in Settings to see progress here.</EmptyNote> : (
+            <div className="budget-bars">
+              {categories.expense.filter(c => (budgets.categories || {})[c.id] > 0).map(c => {
+                const spent = catTotals[c.id] || 0;
+                const budget = budgets.categories[c.id];
+                const pct = Math.min(150, (spent / budget) * 100);
+                const over = spent > budget;
+                return (
+                  <div key={c.id} className="budget-row">
+                    <div className="budget-row-top">
+                      <span className="budget-cat"><DynIcon name={c.icon} size={13} /> {c.name}</span>
+                      <span className={`budget-amt ${over ? "over" : ""}`}>{money(spent, currency)} / {money(budget, currency)}</span>
+                    </div>
+                    <div className="budget-track"><div className="budget-fill" style={{ width: `${Math.min(100, pct)}%`, background: over ? "var(--rust)" : c.color }} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-title">Top categories this month</div>
+          {topCats.length === 0 ? <EmptyNote>Nothing recorded yet this month.</EmptyNote> : (
+            <div className="top-cats">
+              {topCats.map(([id, amt], i) => {
+                const meta = getMeta("expense", id, null, categories);
+                return (
+                  <div key={id} className="top-cat-row">
+                    <span className="top-cat-rank">{i + 1}</span>
+                    <span className="ledger-icon" style={{ background: `${meta.color}1f` }}><DynIcon name={meta.icon} size={14} /></span>
+                    <span className="ledger-desc">{meta.name}</span>
+                    <span className="ledger-amt">{money(amt, currency)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Notes from the ledger</div>
+        <div className="insight-cards">
+          <div className="insight-card">
+            <Emo size={15}>⚖️</Emo>
+            <span>This month: <b>{money(thisMonthIncomeTotal, currency)}</b> in, <b>{money(thisMonthTotal, currency)}</b> out — net <b className={thisMonthIncomeTotal - thisMonthTotal < 0 ? "neg" : "pos"}>{money(thisMonthIncomeTotal - thisMonthTotal, currency)}</b>.</span>
+          </div>
+          {change !== null && (
+            <div className="insight-card">
+              <Emo size={15}>{change > 0 ? "📈" : "📉"}</Emo>
+              <span>You've spent <b>{Math.abs(Math.round(change))}%</b> {change > 0 ? "more" : "less"} than last month so far.</span>
+            </div>
+          )}
+          {biggest && (
+            <div className="insight-card">
+              <DynIcon name={getMeta("expense", biggest.parentId, biggest.subId, categories).icon} size={15} />
+              <span>Biggest expense this month: <b>{biggest.description}</b> at {money(biggest.amount, currency)}.</span>
+            </div>
+          )}
+          {overBudgetCats.length > 0 && (
+            <div className="insight-card warn">
+              <Emo size={15}>⚠️</Emo>
+              <span><b>{overBudgetCats.map(([id]) => getMeta("expense", id, null, categories).name).join(", ")}</b> {overBudgetCats.length === 1 ? "is" : "are"} over budget this month.</span>
+            </div>
+          )}
+          {budgets.overall > 0 && (
+            <div className="insight-card">
+              <Emo size={15}>✨</Emo>
+              <span>At this pace you'll spend about <b>{money(projected, currency)}</b> by month end
+                {projectedSavings !== null && (projectedSavings >= 0 ? <> — on track to save <b>{money(projectedSavings, currency)}</b>.</> : <> — about <b>{money(-projectedSavings, currency)}</b> over budget.</>)}
+              </span>
+            </div>
+          )}
+          {quietDays > 0 && <div className="insight-card"><Emo size={15}>✓</Emo><span><b>{quietDays}</b> spend-free {quietDays === 1 ? "day" : "days"} so far this month — keep it up.</span></div>}
+          {thisMonthExpenses.length === 0 && thisMonthIncome.length === 0 && <EmptyNote>Once you record a few entries, this page will fill up with insights and savings tips.</EmptyNote>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================== Settings ============================== */
+
+function SettingsModal({ budgets, setBudgets, currency, setCurrency, categories, onClose }) {
+  const [overall, setOverall] = useState(budgets.overall || "");
+  const [cats, setCats] = useState(budgets.categories || {});
+  const [curr, setCurr] = useState(currency);
+
+  function save() {
+    setBudgets({ overall: Number(overall) || 0, categories: Object.fromEntries(Object.entries(cats).map(([k, v]) => [k, Number(v) || 0])) });
+    setCurrency(curr);
+    onClose();
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><span>Settings</span><button className="icon-btn small" onClick={onClose}><Emo size={14}>✕</Emo></button></div>
+        <div className="modal-body">
+          <label className="field-label">Currency</label>
+          <div className="cat-chips">{CURRENCIES.map(c => <button key={c} className={`cat-chip ${curr === c ? "active" : ""}`} onClick={() => setCurr(c)}>{c}</button>)}</div>
+
+          <label className="field-label" style={{ marginTop: 14 }}>Overall monthly budget</label>
+          <div className="amount-input-wrap"><span className="amount-prefix">{curr}</span>
+            <input className="text-input mono" type="number" min="0" step="1" value={overall} onChange={e => setOverall(e.target.value)} placeholder="0.00" /></div>
+
+          <label className="field-label" style={{ marginTop: 14 }}>Category budgets (optional)</label>
+          <div className="settings-cat-list">
+            {categories.expense.map(c => (
+              <div key={c.id} className="settings-cat-row">
+                <span className="budget-cat"><DynIcon name={c.icon} size={13} /> {c.name}</span>
+                <div className="amount-input-wrap small"><span className="amount-prefix">{curr}</span>
+                  <input className="text-input mono" type="number" min="0" step="1" value={cats[c.id] || ""} onChange={e => setCats(prev => ({ ...prev, [c.id]: e.target.value }))} placeholder="0" /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="ghost-btn" onClick={onClose}>Cancel</button>
+          <button className="primary-btn" onClick={save}><Emo size={14}>✓</Emo> Save settings</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================== Edit transaction modal ============================== */
+
+function EditModal({ txn, categories, currency, onSave, onClose, onDelete }) {
+  const [description, setDescription] = useState(txn.description);
+  const [amount, setAmount] = useState(String(txn.amount));
+  const [date, setDate] = useState(txn.date);
+  const [parentId, setParentId] = useState(txn.parentId);
+  const [subId, setSubId] = useState(txn.subId);
+
+  function save() {
+    if (!amount || Number(amount) <= 0) return;
+    onSave({ ...txn, description: description.trim(), amount: Number(amount), date, parentId, subId });
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><span>Edit {txn.type === "income" ? "income" : "expense"}</span><button className="icon-btn small" onClick={onClose}><Emo size={14}>✕</Emo></button></div>
+        <div className="modal-body">
+          <label className="field-label">Description</label>
+          <input className="text-input" value={description} onChange={e => setDescription(e.target.value)} />
+          <div className="field-row">
+            <div>
+              <label className="field-label">Amount</label>
+              <div className="amount-input-wrap"><span className="amount-prefix">{currency}</span>
+                <input className="text-input mono" type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+            </div>
+            <div>
+              <label className="field-label">Date</label>
+              <input className="text-input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
+          </div>
+          <label className="field-label">Category</label>
+          <CategoryPicker kind={txn.type} categories={categories} parentId={parentId} subId={subId} onChange={(p, s) => { setParentId(p); setSubId(s); }} />
+        </div>
+        <div className="modal-footer">
+          <button className="ghost-btn danger" onClick={() => onDelete(txn.id)}><Emo size={13}>🗑</Emo> Delete</button>
+          <button className="primary-btn" onClick={save}><Emo size={14}>✓</Emo> Save changes</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
